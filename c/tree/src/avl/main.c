@@ -4,72 +4,41 @@
 
 typedef struct TestNode_s
 {
-    AVLTree_Node_t node;
+    AVLTree_Node_t nodeOrder1;
+    AVLTree_Node_t nodeOrder2;
     int32_t number;
 } TestNode_t;
 
-int32_t predicate (const AVLTree_Node_t* a, const AVLTree_Node_t* b)
+int32_t predicateOrder1(const AVLTree_Node_t* a, const AVLTree_Node_t* b)
 {
-    TestNode_t* nodeA = AVLTree_containerOf(a, TestNode_t, node);
-    TestNode_t* nodeB = AVLTree_containerOf(b, TestNode_t, node);
+    TestNode_t* nodeA = AVLTree_containerOf(a, TestNode_t, nodeOrder1);
+    TestNode_t* nodeB = AVLTree_containerOf(b, TestNode_t, nodeOrder1);
 
     //printf("a.number = %d b.number = %d\n", number1->number, number2->number);
 
     return nodeA->number - nodeB->number;
 }
 
-/**
- * @brief printTree Debug purposes only :)
- * @param node
- */
-void printTree(TestNode_t* node)
+int32_t predicateOrder2(const AVLTree_Node_t* a, const AVLTree_Node_t* b)
 {
-    if (node == NULL)
-    {
-        return;
-    }
+    TestNode_t* nodeA = AVLTree_containerOf(a, TestNode_t, nodeOrder2);
+    TestNode_t* nodeB = AVLTree_containerOf(b, TestNode_t, nodeOrder2);
 
-    printTree(AVLTree_containerOf(node->node.subtree[0], TestNode_t, node));
-    printf("%d ", node->number);
-    printTree(AVLTree_containerOf(node->node.subtree[1], TestNode_t, node));
-}
+    //printf("a.number = %d b.number = %d\n", number1->number, number2->number);
 
-void populateTree(AVLTree_t* tree, TestNode_t* a, const int32_t number)
-{
-    int32_t i;
-
-    for (i=0; i<number; i++)
-    {
-        AVLTree_insert(tree, &(a[i].node));
-        printTree(AVLTree_containerOf(tree->root, TestNode_t, node));
-        printf("\n");
-    }
-
-    printf("Height: %d -------\n", tree->height);
-}
-
-void depopulateTree(AVLTree_t* tree, TestNode_t* a, const int32_t number)
-{
-    int32_t i;
-
-    for (i=0; i<number; i++)
-    {
-        AVLTree_remove(tree, AVLTree_lookup(tree, &(a[i].node)));
-        printTree(AVLTree_containerOf(tree->root, TestNode_t, node));
-        printf("\n");
-    }
-
-    printf("Height: %d -------\n", tree->height);
+    return nodeB->number - nodeA->number;
 }
 
 int main()
 {
     const int32_t number = 32;
     AVLTree_t tree1;
+    AVLTree_t tree2;
     TestNode_t a[number];
     int32_t i;
 
-    AVLTree_init(&tree1, predicate);
+    AVLTree_init(&tree1, predicateOrder1);
+    AVLTree_init(&tree2, predicateOrder2);
 
     /* initialize random seed: */
     srand (time(NULL));
@@ -79,9 +48,49 @@ int main()
         printf("a[%d].number = %d;\n", i, a[i].number);
     }
 
-    populateTree(&tree1, a, number);
-    depopulateTree(&tree1, a, number);
+    {
+        int32_t i;
 
+        for (i=0; i<number; i++)
+        {
+            AVLTree_insert(&tree1, &(a[i].nodeOrder1));
+            AVLTree_insert(&tree2, &(a[i].nodeOrder2));
+        }
+    }
+
+    {
+        AVLTree_Node_t* aux = AVLTree_getFirst(&tree1);
+
+        while (aux != NULL)
+        {
+            TestNode_t* a = AVLTree_containerOf(aux, TestNode_t, nodeOrder1);
+            printf("%d ", a->number);
+            aux = AVLTree_getNext(&tree1, aux);
+        }
+        printf("\n");
+    }
+
+    {
+        AVLTree_Node_t* aux = AVLTree_getFirst(&tree2);
+
+        while (aux != NULL)
+        {
+            TestNode_t* a = AVLTree_containerOf(aux, TestNode_t, nodeOrder2);
+            printf("%d ", a->number);
+            aux = AVLTree_getNext(&tree2, aux);
+        }
+        printf("\n");
+    }
+
+    {
+        int32_t i;
+
+        for (i=0; i<number; i++)
+        {
+            AVLTree_remove(&tree1, AVLTree_lookup(&tree1, &(a[i].nodeOrder1)));
+            AVLTree_remove(&tree2, AVLTree_lookup(&tree2, &(a[i].nodeOrder2)));
+        }
+    }
 
     return 0;
 }
