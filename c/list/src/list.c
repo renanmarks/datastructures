@@ -1,14 +1,17 @@
 #include "list.h"
 #include <stdlib.h>
 
-int32_t LinkedList_create(LinkedList_t* _this)
+int32_t LinkedList_init(LinkedList_t* _this, LinkedList_Predicate _comparisonPredicate)
 {
     if (_this == NULL)
     {
         return -1;
     }
 
-    _this->next = NULL;
+    _this->comparisonPredicate = _comparisonPredicate;
+    _this->first  = NULL;
+    _this->last   = NULL;
+    _this->length = 0;
 
     return 0;
 }
@@ -20,83 +23,148 @@ int32_t LinkedList_destroy(LinkedList_t* _this)
     return 0;
 }
 
-int32_t LinkedList_length(LinkedList_t* _this)
+LinkedList_Node_t* LinkedList_getFirst(LinkedList_t* _this)
 {
-    LinkedList_t* it = _this;
-    uint32_t count = 0;
-
-    while (it != NULL)
+    if (_this == NULL)
     {
-        count++;
-        it = it->next;
+        return NULL;
     }
 
-    return count;
+    return _this->first;
 }
 
-int32_t LinkedList_insert(LinkedList_t** _this, LinkedList_t* item, LinkedList_InsertionPredicate predicate)
+LinkedList_Node_t* LinkedList_getNext(LinkedList_Node_t* node)
 {
-    LinkedList_t* aux = *_this;
+    if (node == NULL)
+    {
+        return NULL;
+    }
+
+    return node->next;
+}
+
+LinkedList_Node_t* LinkedList_getLast(LinkedList_t* _this)
+{
+    if (_this == NULL)
+    {
+        return NULL;
+    }
+
+    return _this->last;
+}
+
+int32_t LinkedList_length(LinkedList_t* _this)
+{
+    return _this->length;
+}
+
+int32_t LinkedList_insert(LinkedList_t* _this, LinkedList_Node_t* item)
+{
+    LinkedList_Node_t* aux;
+
+    if (_this == NULL)
+    {
+        return -1;
+    }
 
     if (item == NULL)
     {
         return -2;
     }
 
-    if (*_this == NULL)
+    if (_this->first == NULL) // List empty
     {
         item->next     = NULL;
-        *_this = item;
+        _this->first   = item;
+        (_this->length)++;
         return 0;
     }
 
-    if ( predicate(*_this, item) != 0 )
+    if ( _this->comparisonPredicate(_this->first, item) > 0 ) // item > first
     {
-        item->next        = *_this;
-        *_this = item;
+        item->next   = _this->first;
+        _this->first = item;
+        (_this->length)++;
         return 0;
     }
+
+    aux = _this->first;
 
     // Get the last item in list
     // Order by predicate
-    while ((aux->next != NULL) && predicate(item, aux->next) != 0)
+    while (aux->next != NULL) // next > item
     {
-        aux = aux->next;
+        int32_t result = _this->comparisonPredicate(item, aux->next);
+
+        if (result > 0)
+        {
+            aux = aux->next;
+            continue;
+        }
+
+        if (result == 0)
+        {
+            return 0;
+        }
+
+        if (result < 0)
+        {
+            break;
+        }
     }
 
     item->next     = aux->next;
     aux->next      = item;
 
+    if (item->next == NULL) // Last element?
+    {
+        _this->last = item;
+    }
+
+    (_this->length)++;
+
     return 0;
 }
 
-int32_t LinkedList_remove(LinkedList_t** _this, void* value, LinkedList_ComparisonPredicate predicate)
+int32_t LinkedList_remove(LinkedList_t* _this, LinkedList_Node_t* value)
 {
-    LinkedList_t* aux;
+    LinkedList_Node_t* aux;
 
-    if (value == NULL)
+    if (_this == NULL)
     {
         return -1;
     }
 
-    // Case 1: first element of the list
-    if ( predicate(*_this, value) != 0 )
+    if (value == NULL)
     {
-        LinkedList_t* next     = (*_this)->next;
-        (*_this)->next         = NULL;
-        (*_this)               = next;
+        return -2;
+    }
+
+    // Case 1: first element of the list
+    if ( _this->comparisonPredicate(_this->first, value) == 0 )
+    {
+        LinkedList_Node_t* next = _this->first->next;
+        _this->first->next      = NULL;
+        _this->first            = next;
+        (_this->length)--;
 
         return 0;
     }
 
     // Case 2: element in the middle of the list
-    for (aux = *_this; aux != NULL; aux = aux->next)
+    for (aux = _this->first; aux != NULL; aux = aux->next)
     {
-        if ( predicate(aux->next, value) != 0 )
+        if ( _this->comparisonPredicate(aux->next, value) == 0 )
         {
-            LinkedList_t* item = aux->next;
-            LinkedList_t* next = item->next;
+            LinkedList_Node_t* item = aux->next;
+            LinkedList_Node_t* next = item->next;
             aux->next = next;
+            (_this->length)--;
+
+            if (_this->last == item) // Last element?
+            {
+                _this->last = next;
+            }
 
             break;
         }
@@ -105,18 +173,23 @@ int32_t LinkedList_remove(LinkedList_t** _this, void* value, LinkedList_Comparis
     return 0;
 }
 
-LinkedList_t* LinkedList_find(LinkedList_t* _this, void* value, LinkedList_ComparisonPredicate predicate)
+LinkedList_Node_t* LinkedList_find(LinkedList_t* _this, LinkedList_Node_t* value)
 {
-    LinkedList_t* aux;
+    LinkedList_Node_t* aux;
+
+    if (_this == NULL)
+    {
+        return NULL;
+    }
 
     if (value == NULL)
     {
         return NULL;
     }
 
-    for (aux = _this; aux != NULL; aux = aux->next)
+    for (aux = _this->first; aux != NULL; aux = aux->next)
     {
-        if ( predicate(aux, value) != 0 )
+        if ( _this->comparisonPredicate(aux, value) == 0 )
         {
             return aux;
         }
@@ -127,15 +200,17 @@ LinkedList_t* LinkedList_find(LinkedList_t* _this, void* value, LinkedList_Compa
 
 /***********************************************************************/
 
-int32_t DoubleLinkedList_create(DoubleLinkedList_t* _this)
+int32_t DoubleLinkedList_init(DoubleLinkedList_t* _this, DoubleLinkedList_Predicate predicate)
 {
     if (_this == NULL)
     {
         return -1;
     }
 
-    _this->next     = NULL;
-    _this->previous = NULL;
+    _this->first  = NULL;
+    _this->last   = NULL;
+    _this->length = 0;
+    _this->comparisonPredicate = predicate;
 
     return 0;
 }
@@ -147,76 +222,159 @@ int32_t DoubleLinkedList_destroy(DoubleLinkedList_t* _this)
     return 0;
 }
 
-int32_t DoubleLinkedList_length(DoubleLinkedList_t* _this)
+DoubleLinkedList_Node_t* DoubleLinkedList_getFirst(DoubleLinkedList_t* _this)
 {
-    DoubleLinkedList_t* it = _this;
-    uint32_t count = 0;
-
-    while (it != NULL)
+    if (_this == NULL)
     {
-        count++;
-        it = it->next;
+        return NULL;
     }
 
-    return count;
+    return _this->first;
 }
 
-int32_t DoubleLinkedList_insert(DoubleLinkedList_t **_this, DoubleLinkedList_t *item, DoubleLinkedList_InsertionPredicate predicate)
+DoubleLinkedList_Node_t* DoubleLinkedList_getNext(DoubleLinkedList_Node_t* node)
 {
-    DoubleLinkedList_t* aux = *_this;
+    if (node == NULL)
+    {
+        return NULL;
+    }
+
+    return node->next;
+}
+
+DoubleLinkedList_Node_t* DoubleLinkedList_getPrevious(DoubleLinkedList_Node_t* node)
+{
+    if (node == NULL)
+    {
+        return NULL;
+    }
+
+    return node->previous;
+}
+
+DoubleLinkedList_Node_t* DoubleLinkedList_getLast(DoubleLinkedList_t* _this)
+{
+    if (_this == NULL)
+    {
+        return NULL;
+    }
+
+    return _this->last;
+}
+
+int32_t DoubleLinkedList_length(DoubleLinkedList_t* _this)
+{
+    return _this->length;
+}
+
+int32_t DoubleLinkedList_insert(DoubleLinkedList_t* _this, DoubleLinkedList_Node_t *item)
+{
+    DoubleLinkedList_Node_t* aux;
+
+    if (_this == NULL)
+    {
+        return -1;
+    }
 
     if (item == NULL)
     {
         return -2;
     }
 
-    if (*_this == NULL)
+    if (_this->first == NULL && _this->last == NULL)
     {
         item->next     = NULL;
         item->previous = NULL;
-        *_this = item;
+        _this->first   = item;
+        _this->last    = item;
+        (_this->length)++;
         return 0;
     }
 
-    if ( predicate(*_this, item) != 0 )
+    if ( _this->comparisonPredicate(_this->first, item) > 0 )
     {
-        item->next        = *_this;
-        item->previous    = NULL;
-        (*_this)->previous = item;
-        *_this = item;
+        if (_this->first->next == NULL)
+        {
+            _this->last = _this->first;
+        }
+
+        item->next             = _this->first;
+        item->previous         = NULL;
+        _this->first->previous = item;
+        _this->first = item;
+        (_this->length)++;
         return 0;
     }
+
+    aux = _this->first;
 
     // Get the last item in list
     // Order by predicate
-    while ((aux->next != NULL) && predicate(item, aux->next) != 0)
+    while (aux->next != NULL) // next > item
     {
-        aux = aux->next;
+        int32_t result = _this->comparisonPredicate(item, aux->next);
+
+        if (result > 0)
+        {
+            aux = aux->next;
+            continue;
+        }
+
+        if (result == 0)
+        {
+            return 0;
+        }
+
+        if (result < 0)
+        {
+            break;
+        }
     }
 
     item->next     = aux->next;
     item->previous = aux;
     aux->next      = item;
 
+    if (item->next == NULL) // Last element?
+    {
+        _this->last = item;
+    }
+    else
+    {
+        item->next->previous = item;
+    }
+
+    (_this->length)++;
+
     return 0;
 }
 
-int32_t DoubleLinkedList_remove(DoubleLinkedList_t **_this, void *value, DoubleLinkedList_ComparisonPredicate predicate)
+int32_t DoubleLinkedList_remove(DoubleLinkedList_t* _this, DoubleLinkedList_Node_t* value)
 {
-    DoubleLinkedList_t* aux;
+    DoubleLinkedList_Node_t* aux;
 
-    if (value == NULL)
+    if (_this == NULL)
     {
         return -1;
     }
 
-    // Case 1: first element of the list
-    if ( predicate(*_this, value) != 0 )
+    if (value == NULL)
     {
-        DoubleLinkedList_t* item = (*_this);
-        DoubleLinkedList_t* next = item->next;
+        return -2;
+    }
 
-        (*_this) = next;
+    // Case 1: first element of the list
+    if ( _this->comparisonPredicate(_this->first, value) == 0 )
+    {
+        DoubleLinkedList_Node_t* item = _this->first;
+        DoubleLinkedList_Node_t* next = item->next;
+
+        _this->first = next;
+
+        if (_this->first == NULL)
+        {
+            _this->last = NULL;
+        }
 
         if (next != NULL)
         {
@@ -226,18 +384,25 @@ int32_t DoubleLinkedList_remove(DoubleLinkedList_t **_this, void *value, DoubleL
         item->next      = NULL;
         item->previous  = NULL;
 
+        (_this->length)--;
+
         return 0;
     }
 
     // Case 2: element in the middle of the list
-    for (aux = *_this; aux != NULL; aux = aux->next)
+    for (aux = _this->first; aux != NULL; aux = aux->next)
     {
-        if ( predicate(aux->next, value) != 0 )
+        if ( _this->comparisonPredicate(aux->next, value) == 0 )
         {
-            DoubleLinkedList_t* item = aux->next;
-            DoubleLinkedList_t* next = item->next;
-
+            DoubleLinkedList_Node_t* item = aux->next;
+            DoubleLinkedList_Node_t* next = item->next;
             aux->next = next;
+            (_this->length)--;
+
+            if (_this->last == item) // Last element?
+            {
+                _this->last = item->previous;
+            }
 
             if (next != NULL)
             {
@@ -254,18 +419,23 @@ int32_t DoubleLinkedList_remove(DoubleLinkedList_t **_this, void *value, DoubleL
     return 0;
 }
 
-DoubleLinkedList_t *DoubleLinkedList_find(DoubleLinkedList_t* _this, void *value, DoubleLinkedList_ComparisonPredicate predicate)
+DoubleLinkedList_Node_t *DoubleLinkedList_find(DoubleLinkedList_t* _this, DoubleLinkedList_Node_t* value)
 {
-    DoubleLinkedList_t* aux;
+    DoubleLinkedList_Node_t* aux;
+
+    if (_this == NULL)
+    {
+        return NULL;
+    }
 
     if (value == NULL)
     {
         return NULL;
     }
 
-    for (aux = _this; aux != NULL; aux = aux->next)
+    for (aux = _this->first; aux != NULL; aux = aux->next)
     {
-        if ( predicate(aux, value) )
+        if ( _this->comparisonPredicate(aux, value) == 0 )
         {
             return aux;
         }
